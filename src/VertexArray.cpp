@@ -2,15 +2,15 @@
 
 VertexArray::VertexArray() {
 	glGenVertexArrays(1, &m_RendererID);
-	Bind();
+	bind();
 }
 
 VertexArray::~VertexArray() {
 	glDeleteVertexArrays(1, &m_RendererID);
 }
 
-void VertexArray::AddBuffer(const VertexBuffer& vb, const VertexBufferLayout& layout) {
-	Bind();
+void VertexArray::addBuffer(const VertexBuffer& vb, const VertexBufferLayout& layout) {
+	bind();
 	vb.bind();
 	const auto& elements = layout.getElements();
 	unsigned int offset = 0;
@@ -22,10 +22,10 @@ void VertexArray::AddBuffer(const VertexBuffer& vb, const VertexBufferLayout& la
 	}
 }
 
-void VertexArray::Bind() const {
+void VertexArray::bind() const {
 	glBindVertexArray(m_RendererID);
 }
 
-void VertexArray::Unbind() const {
+void VertexArray::unbind() const {
 	glBindVertexArray(0);
 }

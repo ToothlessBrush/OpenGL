@@ -11,106 +11,7 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 #include "VertexArray.h"
-
-
-/**
- * reads a file and outputs it as a string.
- *
- * \param filepath path to the file
- * \return string of file contents
- */
-static std::string readShaderFile(const std::string& filepath) {
-
-	std::ifstream file(filepath);
-	if (!file.is_open()) {
-		std::cout << "Failed to open file: " << filepath << std::endl;
-	}
-
-	std::string content;
-	std::string line;
-
-	while (std::getline(file, line)) {
-		content += line + "\n";
-	}
-
-	return content;
-}
-
-/**
- * given the shader directory it reads shader programs returns them both as strings.
- *
- * \param directory path to the directory containing the shader files
- * \return the pair of vertex and fragment shader strings
- */
-static std::pair<std::string, std::string> parseShaderFiles(const std::string& directory) {
-	std::string fragmentShader;
-	std::string vertexShader;
-
-	for (const auto& file : std::filesystem::directory_iterator(std::filesystem::absolute(directory))) {
-		if (file.path().extension() == ".frag") {
-			fragmentShader = readShaderFile(file.path().string());
-		}
-		else if (file.path().extension() == ".vert") {
-			vertexShader = readShaderFile(file.path().string());
-		}
-	}
-
-	return { vertexShader, fragmentShader };
-}
-
-/**
- * compiles opengl shader program and returns a refrence to it.
- *
- * \param type type of shader
- * \param source shader source code
- * \return refrence to shader
- */
-static unsigned int complileShader(unsigned int type, const std::string& source) {
-	std::cout << "Compiling " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") << " shader..." << std::endl;
-	unsigned int id = glCreateShader(type);
-	const char* src = source.c_str();
-	glShaderSource(id, 1, &src, nullptr);
-	glCompileShader(id);
-
-	//do error handling
-	int result;
-	glGetShaderiv(id, GL_COMPILE_STATUS, &result);
-	if (result == GL_FALSE) {
-		int length;
-		glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
-		char* message = (char*)malloc(length * sizeof(char));
-		glGetShaderInfoLog(id, length, &length, message);
-		std::cout << "Failed to compile " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") << " shader!" << std::endl;
-		std::cout << message << std::endl;
-		glDeleteShader(id);
-		return 0;
-	}
-
-	return id;
-}
-
-/**
- * compiles and attaches shaders to opengl.
- *
- * \param vertexShader
- * \param fragementShader
- * \return shader program
- */
-static unsigned int createShader(const std::string& vertexShader, const std::string& fragementShader) {
-	unsigned int program = glCreateProgram();
-	unsigned int vs = complileShader(GL_VERTEX_SHADER, vertexShader);
-	unsigned int fs = complileShader(GL_FRAGMENT_SHADER, fragementShader);
-
-	glAttachShader(program, vs);
-	glAttachShader(program, fs);
-	glLinkProgram(program);
-	glValidateProgram(program);
-
-	glDeleteShader(vs);
-	glDeleteShader(fs);
-
-	return program;
-}
+#include "Shader.h"
 
 int main(void) {
 	GLFWwindow* window;
@@ -161,28 +62,24 @@ int main(void) {
 	//create vertex buffer and bind while the vao is still bound
 	VertexBuffer vb(positions, 4 * 2 * sizeof(float));
 
-	//create layout and add buffer to vertex array
+	//create layout and add buffer to vertex array since vertex array has a layout for the buffer we need to add it to the vertex array a certain way
 	VertexBufferLayout layout;
 	layout.push<float>(2);
-	va.AddBuffer(vb, layout);
+	va.addBuffer(vb, layout);
 
-	//create index buffer and bind while the vao is still bound
+	//create index buffer and bind while the vao is still bound no need to add a layout since it is an index buffer which doesnt need a layout
 	IndexBuffer ib(indices, 6);
 
-	//parse shader files and create shader
-	std::pair<std::string, std::string> shaders = parseShaderFiles("res/shaders");
-	int shader = createShader(shaders.first, shaders.second);
-	glUseProgram(shader);
+	Shader shader("res/shaders");
+	shader.bind();
 
-	int location = glGetUniformLocation(shader, "u_Color");
-	assert(location != -1);
-	glUniform4f(location, 0.2f, 0.8f, 1.0f, 1.0f);
+	shader.setUniform4f("u_Color", 0.2f, 0.8f, 1.0f, 1.0f);
 
 	//unbind everything for update loop
-	glBindVertexArray(0);
-	glUseProgram(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	va.unbind();
+	vb.unbind();
+	ib.unbind();
+	shader.unbind();
 
 	float r = 1.0f;
 	float g = 0.0f;
@@ -195,10 +92,11 @@ int main(void) {
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		//bind shader and set color
-		glUseProgram(shader);
-		glUniform4f(location, r, g, b, 1.0f);
+		shader.bind();
+		shader.setUniform4f("u_Color", r, g, b, 1.0f);
 
-		va.Bind();
+		//bind vertex array which contains the vertex buffer and index buffer
+		va.bind();
 
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
@@ -208,9 +106,6 @@ int main(void) {
 		/* Poll for and process events */
 		glfwPollEvents();
 	}
-
-	//delete shader program
-	glDeleteProgram(shader);
 
 	glfwTerminate();
 	return 0;
